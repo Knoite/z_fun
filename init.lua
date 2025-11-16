@@ -1,5 +1,9 @@
 z_fun = {}
 
+-- Autor: Knoite
+-- Licencia: Creative Commons Attribution 4.0 International (CC BY 4.0)
+-- https://creativecommons.org/licenses/by/4.0/
+
 local mod_path = minetest.get_modpath("z_fun")
 
 
