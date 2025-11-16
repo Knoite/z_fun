@@ -1,0 +1,3 @@
+# ¿Mostrar todos los botones (por material) en el inventario creativo?
+# Si está en false, solo se muestran en crafting pero no en el inventario.
+z_fun_show_buttons_in_creative (Mostrar botones en inventario creativo) bool false
