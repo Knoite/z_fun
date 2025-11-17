@@ -1,6 +1,6 @@
 --==============================================================================
 -- z_fun/showcase.lua
--- Comportamiento mejorado del exhibidor con persistencia
+-- Comportamiento mejorado del exhibidor
 -- =============================================================================
 local core_item = "default:mese_crystal"
 if not minetest.registered_items[core_item] then
@@ -14,18 +14,14 @@ minetest.register_entity("z_fun:showcase_display", {
         visual = "wielditem",
         visual_size = {x = 0.35, y = 0.35},
         textures = {""},
-        static_save = true,
+        static_save = false,
         collide_with_objects = false,
         pointable = false,
     },
     on_activate = function(self, staticdata)
         if staticdata and staticdata ~= "" then
             self.object:set_properties({textures = {staticdata}})
-            self.item_name = staticdata
         end
-    end,
-    get_staticdata = function(self)
-        return self.item_name or ""
     end
 })
 
@@ -38,84 +34,34 @@ minetest.register_globalstep(function(dtime)
         if data and data.obj and data.obj:get_pos() then
             data.rotation = (data.rotation + dtime * 90) % 360
             data.obj:set_rotation({x = 0, y = math.rad(data.rotation), z = 0})
-        else
-            -- Limpiar referencias inválidas
-            showcase_entities[pos_key] = nil
         end
     end
 end)
 
--- ✅ MEJORADO: Función para actualizar la entidad visual con limpieza robusta
+-- Función para actualizar la entidad visual
 local function update_entity(pos, item_name)
     local key = minetest.pos_to_string(pos)
     
-    -- ✅ Eliminar TODAS las entidades en esa posición
+    -- Eliminar entidad existente
     if showcase_entities[key] then
-        if showcase_entities[key].obj then
-            showcase_entities[key].obj:remove()
-        end
+        showcase_entities[key].obj:remove()
         showcase_entities[key] = nil
     end
     
-    -- ✅ NUEVO: Buscar y eliminar cualquier entidad showcase_display en la posición
-    local objects = minetest.get_objects_inside_radius(pos, 0.5)
-    for _, obj in ipairs(objects) do
-        local ent = obj:get_luaentity()
-        if ent and ent.name == "z_fun:showcase_display" then
-            obj:remove()
-        end
-    end
-    
-    -- Crear nueva entidad solo si hay un item
     if item_name and item_name ~= "" then
-        -- Pequeño delay para asegurar que la eliminación se completó
-        minetest.after(0.05, function()
-            local item_pos = {x = pos.x, y = pos.y, z = pos.z}
-            local ent = minetest.add_entity(item_pos, "z_fun:showcase_display", item_name)
-            if ent then
-                local lua_ent = ent:get_luaentity()
-                if lua_ent then
-                    lua_ent.item_name = item_name
-                end
-                
-                showcase_entities[key] = {
-                    obj = ent,
-                    rotation = 0
-                }
-            end
-        end)
+        -- ✅ CORRECCIÓN 1: Posición EXACTA 0,0,0 relativa al nodo
+        local item_pos = {x = pos.x, y = pos.y, z = pos.z}
+        local ent = minetest.add_entity(item_pos, "z_fun:showcase_display", item_name)
+        if ent then
+            showcase_entities[key] = {
+                obj = ent,
+                rotation = 0
+            }
+        end
     end
 end
 
--- ✅ MEJORADO: LBM con limpieza previa
-minetest.register_lbm({
-    label = "Restaurar items de exhibidores",
-    name = "z_fun:restore_showcase_items",
-    nodenames = {"z_fun:showcase"},
-    run_at_every_load = true,
-    action = function(pos, node)
-        local meta = minetest.get_meta(pos)
-        local item_name = meta:get_string("item")
-        
-        -- ✅ Limpiar cualquier entidad residual primero
-        local objects = minetest.get_objects_inside_radius(pos, 0.5)
-        for _, obj in ipairs(objects) do
-            local ent = obj:get_luaentity()
-            if ent and ent.name == "z_fun:showcase_display" then
-                obj:remove()
-            end
-        end
-        
-        -- Restaurar solo si hay item guardado
-        if item_name and item_name ~= "" then
-            minetest.after(0.1, function()
-                update_entity(pos, item_name)
-            end)
-        end
-    end
-})
-
--- ✅ MEJORADO: Sistema de extracción con doble verificación
+-- Sistema de extracción con register_on_punchnode
 minetest.register_on_punchnode(function(pos, node, puncher, pointed_thing)
     if node.name ~= "z_fun:showcase" then return end
     
@@ -125,20 +71,19 @@ minetest.register_on_punchnode(function(pos, node, puncher, pointed_thing)
     local wielded_item = puncher:get_wielded_item()
     local wielded_name = wielded_item:get_name()
 
-    -- Romper con pico
+    -- ✅ 4. Romper con pico (cualquier tipo)
     if string.find(wielded_name, "pick") or string.find(wielded_name, "pico") then
+        -- Dejar que el sistema normal de minería maneje la destrucción
         return false
     end
 
+    -- Verificar si el jugador está usando LMB (puncher no es nil)
     if current ~= "" then
-        -- ✅ PRIMERO: Limpiar metadatos
-        meta:set_string("item", "")
-        meta:set_string("infotext", "Exhibidor (vacío)")
-        
-        -- ✅ SEGUNDO: Eliminar entidad
+        -- ✅ 3. LMB con item: extraer item
+        -- 1. Eliminar entidad
         update_entity(pos, nil)
         
-        -- ✅ TERCERO: Devolver item al jugador
+        -- 2. ✅ DEVOLVER ITEM AL INVENTARIO
         local inv = puncher:get_inventory()
         if inv then
             local leftover = inv:add_item("main", ItemStack(current))
@@ -149,15 +94,24 @@ minetest.register_on_punchnode(function(pos, node, puncher, pointed_thing)
             minetest.add_item(pos, ItemStack(current))
         end
 
+        -- 3. Limpiar metadatos
+        meta:set_string("item", "")
+        meta:set_string("infotext", "Exhibidor (vacío)")
+
         minetest.sound_play("default_place_node_hard", {pos = pos, gain = 0.8, max_hear_distance = 10})
         return true
     else
+        -- ✅ 3. LMB con cubo vacío: romper cubo
+        -- Permitir la destrucción normal del nodo vacío
         return false
     end
 end)
 
 minetest.register_node("z_fun:showcase", {
     description = "Exhibidor de Items",
+    -- ===================================================================
+    -- MODIFICADO: Se cambia la textura de vidrio por la del marco.
+    -- ===================================================================
     tiles = {"z_frame.png"},
     use_texture_alpha = "blend",
     drawtype = "glasslike",
@@ -175,6 +129,7 @@ minetest.register_node("z_fun:showcase", {
         meta:set_string("infotext", "Exhibidor (vacío)")
     end,
 
+    -- ✅ 1. RMB: Colocar items
     on_rightclick = function(pos, node, clicker, itemstack)
         if itemstack:is_empty() then return itemstack end
         
@@ -182,49 +137,37 @@ minetest.register_node("z_fun:showcase", {
         local current = meta:get_string("item")
         
         if current ~= "" then
+            -- Ya hay un item, no hacer nada
             return itemstack
         end
         
+        -- Colocar nuevo item
         local new_item = itemstack:take_item(1)
         local item_name = new_item:get_name()
         
         meta:set_string("item", item_name)
         meta:set_string("infotext", "Exhibidor: " .. new_item:get_description())
         
+        -- ✅ CORRECCIÓN 1: Actualizar entidad en posición exacta 0,0,0
         update_entity(pos, item_name)
         
         minetest.sound_play("default_place_node_hard", {pos = pos, gain = 0.8, max_hear_distance = 10})
         return itemstack
     end,
 
-    -- ✅ MEJORADO: Limpieza completa al destruir
+    -- ✅ CORRECCIÓN 2: Remover on_dig personalizado para permitir minería normal
+    -- Al romper el cubo con pico (con o sin item)
     after_destruct = function(pos, oldnode)
-        local key = minetest.pos_to_string(pos)
-        
-        -- Obtener item antes de limpiar
         local meta = minetest.get_meta(pos)
         local item_str = meta:get_string("item")
         
-        -- Limpiar entidad del registro
-        if showcase_entities[key] then
-            if showcase_entities[key].obj then
-                showcase_entities[key].obj:remove()
-            end
-            showcase_entities[key] = nil
-        end
+        -- Eliminar entidad visual
+        update_entity(pos, nil)
         
-        -- Limpiar todas las entidades en el área
-        local objects = minetest.get_objects_inside_radius(pos, 0.5)
-        for _, obj in ipairs(objects) do
-            local ent = obj:get_luaentity()
-            if ent and ent.name == "z_fun:showcase_display" then
-                obj:remove()
-            end
-        end
-        
-        -- Soltar items
+        -- ✅ CORRECCIÓN 2: Soltar el cubo manualmente (porque el drop no funciona como esperábamos)
         minetest.add_item({x = pos.x + 0.5, y = pos.y, z = pos.z + 0.5}, ItemStack("z_fun:showcase"))
         
+        -- Si tenía item, soltarlo también
         if item_str ~= "" then
             minetest.add_item({x = pos.x + 0.5, y = pos.y, z = pos.z + 0.5}, ItemStack(item_str))
         end
@@ -241,4 +184,4 @@ minetest.register_craft({
     }
 })
 
-print("[z_fun] Exhibidor: Sistema de persistencia y limpieza mejorado.")
+print("[z_fun] Exhibidor: Posición 0,0,0 exacta y drop manual del cubo corregido.")
