@@ -43,6 +43,7 @@ local WALLY_WALLS = {
     "wally:darkage_basalt_brick_wall",
     "wally:darkage_gneiss_brick_wall",
     "wally:darkage_chalked_bricks_wall",
+    "wally:darkage_slate_brick_wall",
     
     -- Añade más aquí:
     -- "wally:otro_material_wall",
