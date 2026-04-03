@@ -1,11 +1,7 @@
--- =============================================================================
--- z_fun/buttons.lua - VERSIÓN FINAL: CIERRE DE SINTAXIS CORREGIDO
--- =============================================================================
-
 local modname = minetest.get_current_modname()
 local S = minetest.get_translator(modname)
 
--- 1. HERRAMIENTAS AUXILIARES
+-- 1. HERRAMIENTAS DE FUSIÓN
 local function merge_tables(base, new)
     local merged = table.copy(base)
     for k, v in pairs(new) do
@@ -14,7 +10,7 @@ local function merge_tables(base, new)
     return merged
 end
 
--- 2. CONFIGURACIÓN DE MEDIDAS (Posición Horizontal Universal)
+-- 2. MEDIDAS DE COLOCACIÓN (Archivo 1 - UNIVERSAL)
 local length = 6/16
 local width = 4/16
 local height_normal = 2/16
@@ -43,6 +39,7 @@ local function register_zfun_button(data, extra_props)
         groups = {choppy = 2, oddly_breakable_by_hand = 2},
         sounds = node_def.sounds or default.node_sound_stone_defaults(),
         
+        -- LÓGICA DE COLOCACIÓN DEL ARCHIVO 1 (LA QUE FUNCIONA)
         on_place = function(itemstack, placer, pointed_thing)
             if pointed_thing.type ~= "node" then return itemstack end
             local node_under = minetest.get_node(pointed_thing.under)
@@ -58,6 +55,7 @@ local function register_zfun_button(data, extra_props)
     minetest.register_node(basename, merge_tables(common_props, {
         description = S(data.description .. " Button"),
         tiles = extra_props.tiles or node_def.tiles,
+        color = extra_props.color, -- INYECCIÓN DEL COLOR DEL ARCHIVO 2
         node_box = nodebox_normal,
         selection_box = nodebox_normal,
         on_rightclick = extra_props.on_rightclick or function(pos, node, clicker)
@@ -70,6 +68,7 @@ local function register_zfun_button(data, extra_props)
     -- Registro del Nodo Presionado
     minetest.register_node(pressed_name, merge_tables(common_props, {
         tiles = extra_props.tiles or node_def.tiles,
+        color = extra_props.color, -- INYECCIÓN DEL COLOR DEL ARCHIVO 2
         node_box = nodebox_pressed,
         selection_box = nodebox_pressed,
         groups = {not_in_creative_inventory = 1},
@@ -86,20 +85,20 @@ end
 
 -- 4. LISTA DE MATERIALES ESTÁNDAR
 local BUTTON_MATERIALS = {
-    { subname="stone",           material="default:stone",           description="Stone" },
-    { subname="desert_stone",    material="default:desert_stone",    description="Desert Stone" },
-    { subname="obsidian",        material="default:obsidian",        description="Obsidian" },
-    { subname="pine_wood",       material="default:pine_wood",       description="Pine Wood" },
-    { subname="aspen_wood",      material="default:aspen_wood",      description="Aspen Wood" },
-    { subname="jungle_wood",     material="default:junglewood",      description="Jungle Wood" },
-    { subname="acacia_wood",     material="default:acacia_wood",     description="Acacia Wood" },
-    { subname="sandstone",       material="default:sandstone",       description="Sandstone" },
+    { subname="stone", material="default:stone", description="Stone" },
+    { subname="desert_stone", material="default:desert_stone", description="Desert Stone" },
+    { subname="obsidian", material="default:obsidian", description="Obsidian" },
+    { subname="pine_wood", material="default:pine_wood", description="Pine Wood" },
+    { subname="aspen_wood", material="default:aspen_wood", description="Aspen Wood" },
+    { subname="jungle_wood", material="default:junglewood", description="Jungle Wood" },
+    { subname="acacia_wood", material="default:acacia_wood", description="Acacia Wood" },
+    { subname="sandstone", material="default:sandstone", description="Sandstone" },
     { subname="desert_sandstone", material="default:desert_sandstone", description="Desert Sandstone" },
     { subname="silver_sandstone", material="default:silver_sandstone", description="Silver Sandstone" },
-    { subname="ice",             material="default:ice",             description="Ice" },
+    { subname="ice", material="default:ice", description="Ice" },
 }
 
--- 5. EJECUCIÓN DEL BUCLE DE REGISTRO
+-- 5. REGISTRO ESTÁNDAR
 for _, data in ipairs(BUTTON_MATERIALS) do
     register_zfun_button(data)
     minetest.register_craft({
@@ -108,24 +107,26 @@ for _, data in ipairs(BUTTON_MATERIALS) do
     })
 end
 
--- 6. EL BOTÓN ROJO ESPECIAL (TEXTURA ICE + ROJO ALARMA)
+-- 6. EL BOTÓN ROJO (ESTILO ARCHIVO 2: COLOR NATIVO)
 register_zfun_button(
     { subname="red_special", material="default:obsidian", description="Red Special" },
     {
-        tiles = {"default_ice.png^[brighten^[colorize:#ff0000:200"}, 
+        -- Recuperamos la configuración exacta del Archivo 2 que te gusta
+        tiles = {""}, -- Dejamos tiles vacío para que use el color nativo
+        color = "red", -- EL ROJO QUE FUNCIONA
         on_rightclick = function(pos, node, clicker)
             local basename = modname .. ":red_special_button"
             local pressed_name = basename .. "_pressed"
             
             minetest.swap_node(pos, {name = pressed_name, param2 = node.param2})
-            minetest.sound_play("default_button_troll", {pos = pos, gain = 0.8, max_hear_distance = 15})
+            minetest.sound_play("default_button_troll", {pos = pos, gain = 0.8})
 
             if clicker and clicker:is_player() then
                 local name = clicker:get_player_name()
-                minetest.chat_send_player(name, "¡Ups!")
+                minetest.chat_send_player(name, "¡Ups! 😇")
                 minetest.after(0.5, function()
                     if minetest.get_player_by_name(name) then
-                        minetest.kick_player(name, "¡Expulsado por lagarto!")
+                        minetest.kick_player(name, "¡Expulsado por curioso! 😉")
                     end
                 end)
             end
@@ -138,5 +139,3 @@ minetest.register_craft({
     output = modname .. ":red_special_button",
     recipe = {{"default:obsidian", "default:torch", "default:obsidian"}},
 })
-
-print("[z_fun/buttons] MOD CARGADO: Rojo Brillante y Sintaxis blindada.")
